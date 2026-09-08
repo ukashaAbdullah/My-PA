@@ -60,12 +60,15 @@ def send_ntfy(topic, title, message, click_url=None, priority="default", tags=No
     if not topic:
         return False, "NTFY_TOPIC is not configured."
 
+    # HTTP header values used by requests/http.client must be Latin-1
+    # compatible. Keep the message body UTF-8, but sanitize the Title header.
+    safe_title = str(title).encode("latin-1", "ignore").decode("latin-1")[:250]
     headers = {
-        "Title": title[:250],
+        "Title": safe_title,
         "Priority": str(priority),
     }
     if tags:
-        headers["Tags"] = tags
+        headers["Tags"] = str(tags).encode("latin-1", "ignore").decode("latin-1")
     if click_url:
         headers["Click"] = click_url
 
