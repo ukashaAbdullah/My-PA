@@ -2,6 +2,7 @@ import os
 import re
 import json
 import hashlib
+import requests
 from datetime import datetime
 from urllib.parse import quote_plus
 
@@ -51,6 +52,36 @@ CATEGORY_QUERIES = {
 
 def _id(title, url):
     return hashlib.sha1((title + url).encode()).hexdigest()[:12]
+
+
+def send_ntfy(topic, title, message, click_url=None, priority="default", tags=None):
+    """Send one push notification through ntfy."""
+    topic = (topic or "").strip()
+    if not topic:
+        return False, "NTFY_TOPIC is not configured."
+
+    headers = {
+        "Title": title[:250],
+        "Priority": str(priority),
+    }
+    if tags:
+        headers["Tags"] = tags
+    if click_url:
+        headers["Click"] = click_url
+
+    try:
+        response = requests.post(
+            f"https://ntfy.sh/{topic}",
+            data=message.encode("utf-8"),
+            headers=headers,
+            timeout=15,
+        )
+        if 200 <= response.status_code < 300:
+            return True, "Notification sent."
+        return False, f"ntfy returned HTTP {response.status_code}: {response.text[:300]}"
+    except requests.RequestException as exc:
+        return False, f"Could not reach ntfy: {exc}"
+
 
 def _search_web(queries, max_results=20):
     if DDGS is None:
@@ -123,7 +154,7 @@ Student:
 
 Rank these opportunities for this student. Do not invent eligibility, deadlines, funding,
 or facts not present in the supplied text. Prefer official-looking sources and direct
-opportunity pages. Return ONLY valid JSON array. Each object must have:
+opportunity pages. Return ONLY a valid JSON object with a key called "results". "results" must be an array. Each object must have:
 index, match_score (0-100), type, summary, why_match, eligibility, deadline, location.
 Keep summary and why_match concise. If a field is unknown, use "Not found".
 
@@ -132,7 +163,7 @@ Opportunities:
 """
     try:
         response = client.chat.completions.create(
-            model=os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
+            model=os.getenv("GROQ_MODEL", "openai/gpt-oss-20b"),
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
             response_format={"type": "json_object"},
