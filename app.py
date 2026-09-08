@@ -94,7 +94,7 @@ with st.sidebar:
         if st.button("📲 Test notification", use_container_width=True):
             ok, message = send_ntfy(
                 topic=ntfy_topic,
-                title="🌱 CareerBuddy test",
+                title="CareerBuddy test",
                 message="Notifications are working! CareerBuddy can now alert you about strong opportunities.",
                 click_url="https://ntfy.sh/",
                 priority="default",
@@ -151,7 +151,7 @@ if st.button("🚀 Search & rank opportunities", type="primary", use_container_w
             for item in strong[:3]:
                 ok, _ = send_ntfy(
                     topic=ntfy_topic,
-                    title=f"🚨 {item.get('match_score', 0)}% CareerBuddy match",
+                    title=f"{item.get('match_score', 0)}% CareerBuddy match",
                     message=(
                         f"{item.get('title', 'New opportunity')}\n"
                         f"Type: {item.get('type', category)}\n"
