@@ -1,5 +1,6 @@
+import os
 import streamlit as st
-from agent import search_and_rank
+from agent import search_and_rank, send_ntfy
 from db import init_db, load_profile, save_profile, save_opportunities, load_saved, toggle_saved
 
 st.set_page_config(
@@ -10,6 +11,15 @@ st.set_page_config(
 )
 
 init_db()
+
+# Read Streamlit Secrets safely.
+try:
+    if "GROQ_API_KEY" in st.secrets:
+        os.environ["GROQ_API_KEY"] = str(st.secrets["GROQ_API_KEY"])
+    if "GROQ_MODEL" in st.secrets:
+        os.environ["GROQ_MODEL"] = str(st.secrets["GROQ_MODEL"])
+except Exception:
+    pass
 
 st.markdown("""
 <style>
@@ -71,6 +81,33 @@ with st.sidebar:
         })
         st.success("Profile saved!")
 
+
+    st.divider()
+    st.header("🔔 Notifications")
+    try:
+        ntfy_topic = str(st.secrets.get("NTFY_TOPIC", os.getenv("NTFY_TOPIC", ""))).strip()
+    except Exception:
+        ntfy_topic = os.getenv("NTFY_TOPIC", "").strip()
+
+    if ntfy_topic:
+        st.success("ntfy is configured")
+        if st.button("📲 Test notification", use_container_width=True):
+            ok, message = send_ntfy(
+                topic=ntfy_topic,
+                title="🌱 CareerBuddy test",
+                message="Notifications are working! CareerBuddy can now alert you about strong opportunities.",
+                click_url="https://ntfy.sh/",
+                priority="default",
+                tags="white_check_mark,seedling",
+            )
+            if ok:
+                st.success("Test notification sent! Check your phone.")
+            else:
+                st.error(message)
+    else:
+        st.warning("Add NTFY_TOPIC to Streamlit Secrets to enable notifications.")
+
+
 st.subheader("🔎 Find opportunities")
 
 col1, col2, col3 = st.columns([2, 2, 1])
@@ -103,6 +140,32 @@ if st.button("🚀 Search & rank opportunities", type="primary", use_container_w
         )
         st.session_state["results"] = result
         save_opportunities(result)
+
+        # Notify only strong matches from this search.
+        if ntfy_topic:
+            strong = [
+                x for x in result
+                if int(x.get("match_score", 0)) >= 80 and x.get("url")
+            ]
+            notified = 0
+            for item in strong[:3]:
+                ok, _ = send_ntfy(
+                    topic=ntfy_topic,
+                    title=f"🚨 {item.get('match_score', 0)}% CareerBuddy match",
+                    message=(
+                        f"{item.get('title', 'New opportunity')}\n"
+                        f"Type: {item.get('type', category)}\n"
+                        f"Deadline: {item.get('deadline', 'Not found')}\n"
+                        f"Location: {item.get('location', 'Not specified')}"
+                    ),
+                    click_url=item.get("url"),
+                    priority="high" if int(item.get("match_score", 0)) >= 90 else "default",
+                    tags="rotating_light,briefcase",
+                )
+                if ok:
+                    notified += 1
+            if notified:
+                st.toast(f"🔔 Sent {notified} high-match notification(s)")
 
 results = st.session_state.get("results", [])
 
