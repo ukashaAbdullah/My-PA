@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+careerbuddy.db
+.env
+.streamlit/secrets.toml
